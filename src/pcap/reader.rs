@@ -10,7 +10,7 @@ pub struct PcapReader {
 
 impl PcapReader {
     pub fn new(fname: String) -> Self {
-        let file = File::create(fname.clone());
+        let file = File::open(fname.clone());
         
         match file {
             Ok(file) => PcapReader { file },
@@ -41,22 +41,28 @@ impl PcapReader {
 
         header.get_magic_number() == 0xA1B2C3D4 || header.get_magic_number() == 0xA1B23C4D
     }
-    pub fn read_all(&mut self) -> Vec<Vec<u8>> {
+    pub fn read_all(&mut self) -> Vec<format::PacketRecord> {
         let mut buf = vec![];
-        self.file.read_to_end(&mut buf).unwrap();
+
+        if let Err(e) = self.file.read_to_end(&mut buf) {
+            eprintln!("Fatal: Failed to open or read file");
+            eprintln!("Message: {}", e);
+            process::exit(exitcode::IOERR);
+        }
 
         if !self.check_header(&buf) {
             eprintln!("Error: This file is not pcap format");
             process::exit(exitcode::USAGE);
         }
 
-        let mut index = 25;
+        // Since pcap header is 24 bytes, packet record is read from the 25th byte (24th byte in 0-based) from the beginning of the file.
+        let mut index = 24;
         let mut res = vec![];
         while index < buf.len() {
             let mut header_buf = vec![];
             for _ in 0..16 {
                 if index >= buf.len() {
-                    eprintln!("Error: Malformed pcap file");
+                    eprintln!("Error: Malformed pcap packet header");
                     process::exit(exitcode::DATAERR);
                 }
                 header_buf.push(buf[index]);
@@ -72,18 +78,24 @@ impl PcapReader {
                 }
             };
 
-            let data_len = header.get_captured_packet_length();
+            let timestamp_sec = header.timestamp_sec;
+            let timestamp_msec = header.timestamp_msec;
+            let captured_packet_length = header.captured_packet_length;
+            let original_packet_length = header.original_packet_length;
+
             let mut data = vec![];
-            for _ in 0..data_len {
+            for _ in 0..captured_packet_length {
                 if index >= buf.len() {
-                    eprintln!("Error: Malformed pcap file");
+                    eprintln!("Error: Malformed pcap packet data");
                     process::exit(exitcode::DATAERR);
                 }
                 data.push(buf[index]);
                 index += 1;
             }
 
-            res.push(data);
+            let record = format::PacketRecord::new(timestamp_sec, timestamp_msec, captured_packet_length, original_packet_length, &data);
+
+            res.push(record);
         }
 
         res

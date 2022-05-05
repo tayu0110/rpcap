@@ -45,21 +45,21 @@ impl PcapHeader {
 pub struct PacketRecordHeader {
     // Timestamp (Seconds):
     //                  UNIX Time (the number of seconds that have elapsed since 1970-01-01 00:00:00 UTC)
-    timestamp_sec: u32,
+    pub timestamp_sec: u32,
     // Timestamp (Microseconds or nanoseconds):
     //                  The number of microseconds or nanoseconds that have elapsed since that seconds.
     //                  Whether the value represents microseconds or nanoseconds is specified by the magic number in the File Header.
-    timestamp_msec: u32,
+    pub timestamp_msec: u32,
     // Captured Packet Length:
     //                  The number of octets captured from packet (i.e. the length of the Packet Data Field).
-    captured_packet_length: u32,
+    pub captured_packet_length: u32,
     // Original Packet Length:
     //                  The actual length of the packet when it was transmitted on the network.
-    original_packet_length: u32
+    pub original_packet_length: u32
 }
 
 impl PacketRecordHeader {
-    fn new(timestamp_sec: u32, timestamp_msec: u32, captured_packet_length: u32, original_packet_length: u32) -> Self {
+    pub fn new(timestamp_sec: u32, timestamp_msec: u32, captured_packet_length: u32, original_packet_length: u32) -> Self {
         PacketRecordHeader { timestamp_sec, timestamp_msec, captured_packet_length, original_packet_length }
     }
     pub fn get_captured_packet_length(&self) -> u32 {
@@ -68,13 +68,11 @@ impl PacketRecordHeader {
 }
 
 #[repr(C)]
-#[derive(Serialize, Deserialize)]
 pub struct PacketRecord {
-    header: PacketRecordHeader,
+    pub header: PacketRecordHeader,
     // Packet Data:     The data coming from the network, including link-layer headers.
     //                  The actual length of this field is Captured Packet Length.
-    #[serde(with = "serde_bytes")]
-    packet_data: Vec<u8>
+    pub packet_data: Vec<u8>
 }
 
 impl PacketRecord {

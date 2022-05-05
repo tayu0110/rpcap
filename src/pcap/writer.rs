@@ -50,8 +50,8 @@ impl PcapWriter {
         }
     }
     pub fn write(&mut self, timestamp_sec: u32, timestamp_msec: u32, captured_packet_length: u32, original_packet_length: u32, data: &[u8]) {
-        let record = format::PacketRecord::new(timestamp_sec, timestamp_msec, captured_packet_length, original_packet_length, data);
-        let buf_res = bincode::serialize(&record);
+        let record_header = format::PacketRecordHeader::new(timestamp_sec, timestamp_msec, captured_packet_length, original_packet_length);
+        let buf_res = bincode::serialize(&record_header);
 
         let buf = match buf_res {
             Ok(buf) => buf,
@@ -62,15 +62,16 @@ impl PcapWriter {
             }
         };
 
-        let status = self.file.by_ref().write(&buf);
+        if let Err(e) = self.file.by_ref().write(buf.as_slice()) {
+            eprintln!("Fatal: Failed to write data to output file");
+            eprintln!("Message: {}", e);
+            process::exit(exitcode::IOERR);
+        }
 
-        match status {
-            Ok(_) => return,
-            Err(e) => {
-                eprintln!("Fatal: Failed to write data to output file");
-                eprintln!("Message: {}", e);
-                process::exit(exitcode::IOERR);
-            }
+        if let Err(e) = self.file.by_ref().write(data) {
+            eprintln!("Fatal: Failed to write data to output file");
+            eprintln!("Message: {}", e);
+            process::exit(exitcode::IOERR);
         }
     }
 }

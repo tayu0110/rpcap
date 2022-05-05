@@ -28,21 +28,17 @@ impl Interface {
     fn if_name(&self) -> String {
         self.interface.name.to_string()
     }
-    pub fn listen(
-            &mut self
-            // , lock: &Mutex<bool>
-    ) {
+    pub fn listen(&mut self) {
         loop {
             let if_name = self.if_name().to_owned().to_string();
             match self.rx.next() {
                 Ok(data) => {
                     let time_stamp = Local::now();
-                    // let _lock = lock.lock().unwrap();
                     let mut pwriter = self.pwriter.lock().unwrap();
 
                     match &mut *pwriter {
                         Some(pwriter) => {
-                            pcap::handler::handle_pcap(time_stamp, data, pwriter);
+                            pcap::handler::handle_write_pcap(time_stamp, data, pwriter);
                         }
                         None => {
                             dump::handler::handle_ethernet_packet(time_stamp, if_name, data);

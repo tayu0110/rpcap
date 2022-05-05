@@ -19,20 +19,28 @@ pub mod dump;
 struct Args {
     #[clap(short, long, help = "Specify interfaces to listen")]
     interface: Option<String>,
+    #[clap(short, long, help = "Input file name, pcap format is only allowed", value_name = "FILE")]
+    read_from: Option<String>,
     #[clap(short, long, help = "Output file name", value_name = "FILE")]
-    output: Option<String>
+    write_to: Option<String>
 }
 
 fn main() {
     let args = Args::parse();
     
-    let pwriter = match args.output {
-        Some(fname) => {
-            let pwriter = Arc::new(Mutex::new(Some(pcap::writer::PcapWriter::new(fname))));
-            pwriter
-        }
-        None => Arc::new(Mutex::new(None))
+    let (pwriter, wflag) = match args.write_to {
+        Some(fname) => (Arc::new(Mutex::new(Some(pcap::writer::PcapWriter::new(fname)))), true),
+        None => (Arc::new(Mutex::new(None)), false)
     };
+
+    if let Some(fname) = args.read_from {
+        if wflag {
+            eprintln!("Error: Cannot specify both read-from and write-to options at the same time");
+            process::exit(exitcode::USAGE);
+        }
+        pcap::handler::handle_dump_pcap(fname);
+        process::exit(exitcode::OK);
+    }
     
     let mut channels = vec![];
     match args.interface {
@@ -92,10 +100,8 @@ fn main() {
         }
     }
     
-    // let lock = Arc::new(Mutex::new(false));
     let mut thread_handles = vec![];
     for mut c in channels {
-        // let lock = Arc::clone(&lock);
         thread_handles.push(thread::spawn(move || {
             c.listen();
         }));
