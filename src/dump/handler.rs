@@ -3,7 +3,7 @@ use pnet::util::MacAddr;
 use pnet::packet::{
     Packet,
     ethernet::{EthernetPacket, EtherTypes},
-    arp::ArpPacket,
+    arp::{self, ArpPacket},
     ip::IpNextHeaderProtocols,
     ipv4::Ipv4Packet,
     ipv6::Ipv6Packet,
@@ -93,14 +93,35 @@ pub fn handle_arp(time_stamp: String, if_name: String, frame: EthernetPacket) {
 
     match packet {
         Some(packet) => {
-            println!("{}: [{}]: ARP Packet: {}({}) > {}({}); operation: {:?}",
-                time_stamp,
-                if_name,
-                frame.get_source(),
-                packet.get_sender_proto_addr(),
-                frame.get_destination(),
-                packet.get_target_proto_addr(),
-                packet.get_operation());
+            match packet.get_operation() {
+                arp::ArpOperations::Request => {
+                    println!("{}: [{}]: ARP Request Packet {}({}) > {} (who has {}?)",
+                        time_stamp,
+                        if_name,
+                        packet.get_sender_hw_addr(),
+                        packet.get_sender_proto_addr(),
+                        frame.get_destination(),
+                        packet.get_target_proto_addr());
+                }
+                arp::ArpOperations::Reply => {
+                    println!("{}: [{}]: ARP Reply Packet {}({}) > {}({})",
+                        time_stamp,
+                        if_name,
+                        packet.get_sender_hw_addr(),
+                        packet.get_sender_proto_addr(),
+                        packet.get_target_hw_addr(),
+                        packet.get_target_proto_addr());
+                }
+                _ => {
+                    println!("{}: [{}]: ARP Unknown Packet {}({}) > {}({})",
+                        time_stamp,
+                        if_name,
+                        packet.get_sender_hw_addr(),
+                        packet.get_sender_proto_addr(),
+                        packet.get_target_hw_addr(),
+                        packet.get_target_proto_addr());
+                }
+            }
         }
         None => {
             println!("{}: [{}]: Malformed Arp Packet", time_stamp, if_name);
@@ -257,23 +278,31 @@ fn handle_icmpv6(time_stamp: String, if_name: String, src: IpAddr, dest: IpAddr,
                 // Icmpv6Types::DestinationUnreachable => {
                     // Not implemented yet
                 // }
-                // Icmpv6Types::RouterSolicit => {
-                //     let router_solicit_packet = icmpv6::ndp::RouterSolicitPacket::new(packet).unwrap();
-                    // println!("{}: [{}]: ICMPv6 Router Solicitation Packet {} > {} (who has {})",
-                    //     time_stamp,
-                    //     if_name,
-                    //     src,
-                    //     dest);
-                // }
-                // Icmpv6Types::RouterAdvert => {
-                //     let router_advert_packet = icmpv6::ndp::RouterAdvertPacket::new(packet).unwrap();
-                    // println!("{}: [{}]: ICMPv6 Router Advertizement Packet {} > {} (target is {})",
-                    //     time_stamp,
-                    //     if_name,
-                    //     src,
-                    //     dest,
-                    //     );
-                // }
+                Icmpv6Types::RouterSolicit => {
+                    let router_solicit_packet = icmpv6::ndp::RouterSolicitPacket::new(packet).unwrap();
+                    let ndp_option = icmpv6::ndp::NdpOptionPacket::new(&router_solicit_packet.get_options_raw()).unwrap();
+                    let src_macaddr = {
+                        let mut buf = [0; 6];
+                        for i in 0..6 {
+                            buf[i] = ndp_option.payload()[i];
+                        }
+                        MacAddr::from(buf)
+                    };
+                    println!("{}: [{}]: ICMPv6 Router Solicitation Packet {} > {} (from {})",
+                        time_stamp,
+                        if_name,
+                        src,
+                        dest,
+                        src_macaddr);
+                }
+                Icmpv6Types::RouterAdvert => {
+                    // let router_advert_packet = icmpv6::ndp::RouterAdvertPacket::new(packet).unwrap();
+                    println!("{}: [{}]: ICMPv6 Router Advertizement Packet {} > {}",
+                        time_stamp,
+                        if_name,
+                        src,
+                        dest);
+                }
                 Icmpv6Types::NeighborSolicit => {
                     let neighbor_solicit_packet = icmpv6::ndp::NeighborSolicitPacket::new(packet).unwrap();
                     let ndp_option = icmpv6::ndp::NdpOptionPacket::new(&neighbor_solicit_packet.get_options_raw()).unwrap();
