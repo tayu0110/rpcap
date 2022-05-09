@@ -13,6 +13,8 @@ use pnet::packet::{
     icmpv6::{self, Icmpv6Packet, Icmpv6Types} };
 use chrono::{Local, DateTime};
 
+use super::selfmade_packet;
+
 const TIMESTAMP_FORMAT: &str = "%Y-%m-%d %H:%M:%S.%6f %Z";
 
 pub fn handle_ethernet_packet(time_stamp: DateTime<Local>, if_name: String, data: &[u8]) {
@@ -275,9 +277,57 @@ fn handle_icmpv6(time_stamp: String, if_name: String, src: IpAddr, dest: IpAddr,
                         echo_rep_packet.get_sequence_number(),
                         echo_rep_packet.get_identifier());                        
                 }
-                // Icmpv6Types::DestinationUnreachable => {
-                    // Not implemented yet
-                // }
+                Icmpv6Types::DestinationUnreachable => {
+                    let icmp_code = match segment.get_icmpv6_code() {
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::NoRouteToDestination
+                            => "No Route To Destination",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::CommunicationWithDestinationAdministrativelyProhibited
+                            => "Communication With Destination Administratively Prohibited",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::BeyondScopeOfSourceAddress
+                            => "Beyond Scope Of Source Address",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::AddressUnreachable
+                            => "Address Unreachable",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::PortUnreachable
+                            => "Port Unreachable",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::SourceAddressFailedIngressOrEgressPolicy
+                            => "Source Address Failed Ingress/Egress Policy",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::RejectRouteToDestination
+                            => "Reject Route To Destination",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::ErrorInSourceRoutingHeader
+                            => "Error In Source Routing Header",
+                        selfmade_packet::icmpv6::destination_unreachable::Icmpv6Codes::HeadersTooLong
+                            => "Headers Too Long",
+                        _   => "Invalid Code"
+                    };
+                    println!("{}: [{}]: ICMPv6 destination unreachable {} > {} ({})",
+                        time_stamp,
+                        if_name,
+                        src,
+                        dest,
+                        icmp_code)
+                }
+                Icmpv6Types::PacketTooBig => {
+                    println!("{}: [{}]: ICMPv6 Packet Too Big {} > {}",
+                        time_stamp,
+                        if_name,
+                        src,
+                        dest);
+                }
+                Icmpv6Types::TimeExceeded => {
+                    let icmp_code = match segment.get_icmpv6_code() {
+                        selfmade_packet::icmpv6::time_exceeded::Icmpv6Codes::HopLimitExceededInTransit
+                            => "Hop Limit Exceeded In Transit",
+                        selfmade_packet::icmpv6::time_exceeded::Icmpv6Codes::FragmentReassemblyTimeExceeded
+                            => "Fragment Reassembly Time Exceeded",
+                        _   => "Invalid Code"
+                    };
+                    println!("{}: [{}]: ICMPv6 Time Exceeded {} > {} ({})",
+                        time_stamp,
+                        if_name,
+                        src,
+                        dest,
+                        icmp_code);
+                }
                 Icmpv6Types::RouterSolicit => {
                     let router_solicit_packet = icmpv6::ndp::RouterSolicitPacket::new(packet).unwrap();
                     let ndp_option = icmpv6::ndp::NdpOptionPacket::new(&router_solicit_packet.get_options_raw()).unwrap();
