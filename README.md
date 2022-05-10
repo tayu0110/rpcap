@@ -30,6 +30,7 @@ $ rpcap -h
 - serde(MIT/Apache-2.0)
 - serde_bytes(MIT/Apache-2.0)
 - bincode(MIT)
+- byteorder(MIT/Unlicense)
 
 ## License
 This software is released under the MIT License, see LICENSE.
@@ -41,3 +42,4 @@ The following libraries are used in this software.
 - serde(MIT/Apache-2.0)
 - serde_bytes(MIT/Apache-2.0)
 - bincode(MIT)
+- byteorder(MIT/Unlicense)

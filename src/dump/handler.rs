@@ -25,15 +25,7 @@ pub fn handle_ethernet_packet(time_stamp: DateTime<Local>, if_name: String, data
         EtherTypes::Ipv4 => handle_ipv4(time_stamp_str, if_name, packet),
         EtherTypes::Ipv6 => handle_ipv6(time_stamp_str, if_name, packet),
         EtherTypes::Arp => handle_arp(time_stamp_str, if_name, packet),
-        _ => {
-            println!("{}: [{}]: Unknown packet: {} > {}; ethertype: {} length: {}",
-                time_stamp,
-                if_name,
-                packet.get_source(),
-                packet.get_destination(),
-                packet.get_ethertype(),
-                packet.packet().len());
-        }
+        _ => handle_unsupported_ethernet_packet(time_stamp_str, if_name, data)
     }
 }
 pub fn handle_ipv4(time_stamp: String, if_name: String, frame: EthernetPacket) {
@@ -346,7 +338,6 @@ fn handle_icmpv6(time_stamp: String, if_name: String, src: IpAddr, dest: IpAddr,
                         src_macaddr);
                 }
                 Icmpv6Types::RouterAdvert => {
-                    // let router_advert_packet = icmpv6::ndp::RouterAdvertPacket::new(packet).unwrap();
                     println!("{}: [{}]: ICMPv6 Router Advertizement Packet {} > {}",
                         time_stamp,
                         if_name,
@@ -394,4 +385,62 @@ fn handle_icmpv6(time_stamp: String, if_name: String, src: IpAddr, dest: IpAddr,
             println!("{}: [{}]: Malformed ICMPv6 Packet", time_stamp, if_name);
         }
     }
+}
+fn handle_unsupported_ethernet_packet(time_stamp: String, if_name: String, data: &[u8]) {
+    let frame = selfmade_packet::ethernet::IEEE802_3and802_2Packet::new(data);
+
+    if let Some(frame) = frame {
+        if frame.get_dsap() == 0x42 && frame.get_ssap() == 0x42 {
+            handle_stp(time_stamp, if_name, frame);
+            return;
+        }
+    }
+
+    let frame = EthernetPacket::new(data).unwrap();
+    println!("{}: [{}]: Unknown packet: {} > {}; ethertype: {} length: {}",
+        time_stamp,
+        if_name,
+        frame.get_source(),
+        frame.get_destination(),
+        frame.get_ethertype(),
+        frame.packet().len());
+}
+fn handle_stp(time_stamp: String, if_name: String, frame: selfmade_packet::ethernet::IEEE802_3and802_2Packet) {
+    let bpdu = selfmade_packet::stp::BPDUv0Format::new(frame.payload());
+
+    if let Some(bpdu) = bpdu {
+        if bpdu.get_protocol_id() == 0 && bpdu.get_protocol_version() == 0 {
+            println!("{}: [{}]: STP BPDU Packet: {} > {} (Root ID: 0x{:X}, Root Path Cost: {}, Port ID: 0x{:X})",
+                time_stamp,
+                if_name,
+                frame.get_source(),
+                frame.get_destination(),
+                bpdu.get_root_id(),
+                bpdu.get_root_path_cost(),
+                bpdu.get_port_id());
+            return;
+        }
+    }
+
+    let bpdu = selfmade_packet::stp::BPDUv2Format::new(frame.payload());
+
+    if let Some(bpdu) = bpdu {
+        if bpdu.get_protocol_id() == 0 && bpdu.get_protocol_version() == 2 {
+            println!("{}: [{}]: RSTP BPDU Packet: {} > {} (Root ID: 0x{:X}, Root Path Cost: {}, Port ID: 0x{:X})",
+                time_stamp,
+                if_name,
+                frame.get_source(),
+                frame.get_destination(),
+                bpdu.get_root_id(),
+                bpdu.get_root_path_cost(),
+                bpdu.get_port_id());
+            return;
+        }
+    }
+
+    println!("{}: [{}]: Unknown BPDU Packet: {} > {}",
+        time_stamp,
+        if_name,
+        frame.get_source(),
+        frame.get_destination());
 }
