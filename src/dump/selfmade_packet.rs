@@ -212,3 +212,97 @@ pub mod stp {
         pub fn get_version1_length(&self) -> u8 { self.version1_length }
     }
 }
+
+pub mod lldp {
+    use byteorder::{self, ByteOrder};
+
+    pub mod TLVTypes {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct TLVType(pub u8);
+    
+        impl TLVType {
+            pub fn new(val: u8) -> Self {
+                TLVType(val)
+            }
+        }
+    
+        pub const EndOfLLDPDU: TLVType = TLVType(0x00);
+        pub const ChassisID: TLVType = TLVType(0x01);
+        pub const PortID: TLVType = TLVType(0x02);
+        pub const TimeToLive: TLVType = TLVType(0x03);
+        pub const PortDescription: TLVType = TLVType(0x04);
+        pub const SystemName: TLVType = TLVType(0x05);
+        pub const SystemDescription: TLVType = TLVType(0x06);
+        pub const SystemCapabilities: TLVType = TLVType(0x07);
+        pub const ManagementAddress: TLVType = TLVType(0x08);
+        pub const CustomTLV: TLVType = TLVType(0x7F);
+    }
+
+    pub struct TLV {
+        // |<-------------------------  16 bit   ------------------------->|
+        // +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        // |         TLV Type          |            TLV Length             |
+        // +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        // |<--------- 7 bit --------->|<------------- 9 bit ------------->|
+        header: u16,
+        value: Vec<u8>
+    }
+
+    impl TLV {
+        pub fn new(data: &[u8]) -> Option<Self> {
+            if data.len() < 16 {
+                return None;
+            }
+
+            let header = byteorder::NetworkEndian::read_u16(data[0..16].try_into().unwrap());
+            let tlv_length = header >> 7;
+
+            if data.len() < tlv_length as usize {
+                return None;
+            }
+
+            let value = data[17..tlv_length as usize].into();
+
+            Some(TLV { header, value })
+        }
+        pub fn get_tlv_type(&self) -> TLVTypes::TLVType {
+            TLVTypes::TLVType((self.header & 0x7F) as u8)
+        }
+        pub fn get_tlv_length(&self) -> u16 {
+            self.header >> 7
+        }
+        pub fn get_tlv_value(&self) -> &[u8] {
+            self.value.as_slice()
+        }
+    }
+
+    pub struct LLDPFormat {
+        tlvs: Box<Vec<TLV>>
+    }
+
+    impl LLDPFormat {
+        pub fn new(data: &[u8]) -> Option<Self> {
+            let mut buf = data;
+            let mut tlvs = Box::new(vec![]);
+
+            while buf.len() > 0 {
+                match TLV::new(buf) {
+                    Some(tlv) => {
+                        let tlv_length = tlv.get_tlv_length() as usize;
+                        buf = buf[tlv_length..buf.len()].try_into().unwrap();
+
+                        tlvs.push(tlv);
+                    }
+                    None => {
+                        return None;
+                    }
+                }
+            }
+
+            Some(LLDPFormat { tlvs })
+        }
+        pub fn get_tlvs(&self) -> &Box<Vec<TLV>> {
+            &self.tlvs
+        }
+    }
+}

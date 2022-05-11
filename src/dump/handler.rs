@@ -25,6 +25,7 @@ pub fn handle_ethernet_packet(time_stamp: DateTime<Local>, if_name: String, data
         EtherTypes::Ipv4 => handle_ipv4(time_stamp_str, if_name, packet),
         EtherTypes::Ipv6 => handle_ipv6(time_stamp_str, if_name, packet),
         EtherTypes::Arp => handle_arp(time_stamp_str, if_name, packet),
+        EtherTypes::Lldp => handle_lldp(time_stamp_str, if_name, packet),
         _ => handle_unsupported_ethernet_packet(time_stamp_str, if_name, data)
     }
 }
@@ -406,9 +407,7 @@ fn handle_unsupported_ethernet_packet(time_stamp: String, if_name: String, data:
         frame.packet().len());
 }
 fn handle_stp(time_stamp: String, if_name: String, frame: selfmade_packet::ethernet::IEEE802_3and802_2Packet) {
-    let bpdu = selfmade_packet::stp::BPDUv0Format::new(frame.payload());
-
-    if let Some(bpdu) = bpdu {
+    if let Some(bpdu) = selfmade_packet::stp::BPDUv0Format::new(frame.payload()) {
         if bpdu.get_protocol_id() == 0 && bpdu.get_protocol_version() == 0 {
             println!("{}: [{}]: STP BPDU Packet: {} > {} (Root ID: 0x{:X}, Root Path Cost: {}, Port ID: 0x{:X})",
                 time_stamp,
@@ -422,9 +421,7 @@ fn handle_stp(time_stamp: String, if_name: String, frame: selfmade_packet::ether
         }
     }
 
-    let bpdu = selfmade_packet::stp::BPDUv2Format::new(frame.payload());
-
-    if let Some(bpdu) = bpdu {
+    if let Some(bpdu) = selfmade_packet::stp::BPDUv2Format::new(frame.payload()) {
         if bpdu.get_protocol_id() == 0 && bpdu.get_protocol_version() == 2 {
             println!("{}: [{}]: RSTP BPDU Packet: {} > {} (Root ID: 0x{:X}, Root Path Cost: {}, Port ID: 0x{:X})",
                 time_stamp,
@@ -439,6 +436,13 @@ fn handle_stp(time_stamp: String, if_name: String, frame: selfmade_packet::ether
     }
 
     println!("{}: [{}]: Unknown BPDU Packet: {} > {}",
+        time_stamp,
+        if_name,
+        frame.get_source(),
+        frame.get_destination());
+}
+fn handle_lldp(time_stamp: String, if_name: String, frame: EthernetPacket) {
+    println!("{}: [{}]: Unknown LLDP Packet: {} > {}",
         time_stamp,
         if_name,
         frame.get_source(),
